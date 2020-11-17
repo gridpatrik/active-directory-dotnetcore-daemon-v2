@@ -162,6 +162,12 @@ The content of `appRoles` should be the following (the `id` can be any unique **
    - Select the API created in the previous step, for example `TodoList-webapi-daemon-v2`
    - In the **Application permissions** section, ensure that the right permissions are checked: **DaemonAppRole**
    - Select the **Add permissions** button
+1. In the list of pages for the app, select **API permissions**
+   - Click the **Add a permission** button and then,
+   - Ensure that the **Microsoft APIs** tab is selected
+   - In the *Commonly used Microsoft APIs* section, click on **Microsoft Graph**
+   - In the **Application permissions** section, ensure that the right permissions are checked: **User.Read.All**
+   - Select the **Add permissions** button
 1. At this stage permissions are assigned correctly but the client app does not allow interaction. 
    Therefore no consent can be presented via a UI and accepted to use the service app. 
    Click the **Grant/revoke admin consent for {tenant}** button, and then select **Yes** when you are asked if you want to grant consent for the
