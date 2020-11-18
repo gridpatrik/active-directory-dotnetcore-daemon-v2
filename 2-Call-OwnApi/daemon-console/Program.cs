@@ -2,13 +2,14 @@
 // Licensed under the MIT License.
 
 using Microsoft.Identity.Client;
-using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
 using System.Security.Cryptography.X509Certificates; //Only import this if you are using certificate
+using System.Text.Json;
 using System.Threading.Tasks;
+using daemon_console.Models;
 
 namespace daemon_console
 {
@@ -36,6 +37,18 @@ namespace daemon_console
             Console.ReadKey();
         }
 
+        public static string ConvertToImmutableId(string plainText)
+        {
+            var plainTextBytes = System.Text.Encoding.UTF8.GetBytes(plainText);
+            return Convert.ToBase64String(plainTextBytes);
+        }
+
+        public static string ConvertFromImmutableId(string base64EncodedData)
+        {
+            var base64EncodedBytes = Convert.FromBase64String(base64EncodedData);
+            return System.Text.Encoding.UTF8.GetString(base64EncodedBytes);
+        }
+
         private static async Task RunAsync()
         {
             AuthenticationConfig config = AuthenticationConfig.ReadFromJsonFile("appsettings.json");
@@ -53,7 +66,6 @@ namespace daemon_console
                     .WithAuthority(new Uri(config.Authority))
                     .Build();
             }
-        
             else
             {
                 X509Certificate2 certificate = ReadCertificate(config.CertificateName);
@@ -66,16 +78,63 @@ namespace daemon_console
             // With client credentials flows the scopes is ALWAYS of the shape "resource/.default", as the 
             // application permissions need to be set statically (in the portal or by PowerShell), and then granted by
             // a tenant administrator
-            string[] scopes = new string[] { config.TodoListScope };
+            string[] scopes = new string[] { config.MsGraphScope };
+            AuthenticationResult result = await AquireToken(app, scopes);
 
-            AuthenticationResult result = null;
+            // Create an HttpClient to handle requests. 
+            // Recommended reading before implementing in production: https://docs.microsoft.com/en-us/aspnet/core/fundamentals/http-requests?view=aspnetcore-5.0#typed-clients
+            var httpClient = new HttpClient();
+            var apiCaller = new ProtectedApiCallHelper(httpClient);
+
+            //
+            // The following lines shows how one could take the objectGUID of an Active Directory user, convert and retrive the id of the Azure Active Directory user based on the converted id.
+            //
+            //var adUserObjectId = "<Replace with on-premises objectGuid for user>";
+            ////Convert to ImmutableId
+            //var aadImmutableId = ConvertToImmutableId(adUserObjectId);
+            ////Look for user in Ms Graph
+            //var users = await apiCaller.GetAsync<GraphResponse<GraphUser>>($"{config.MsGraphBaseAddress}{config.MsGraphApiVersion}/users?$filter=onPremisesImmutableId eq {aadImmutableId}", result.AccessToken);
+            ////Get the id of the one and only user matching the immutable id.
+            //var aadUserObjectId = users.Value.Single().Id.ToString();
+
+            // Sample call to Microsft Graph
+            var usersResponse = await apiCaller.GetAsync<GraphResponse<GraphUser>>($"{config.MsGraphBaseAddress}{config.MsGraphApiVersion}/users?$top=5", result.AccessToken);
+            foreach (GraphUser user in usersResponse.Value)
+            {
+                Console.WriteLine($"User found in Graph with id: {user.Id}");
+            }
+
+            // Get token for own API
+            // Note: We need to get a new token since scopes for different applications cannot be mixed in the same "aquire token process"
+            scopes = new string[] { config.TodoListScope };
+            result = await AquireToken(app, scopes);
+
+            // Sample Get data from protected api
+            var apiObjects = await apiCaller.GetAsync<IEnumerable<TodoItem>>($"{config.TodoListBaseAddress}/api/todolist", result.AccessToken);
+            PrintTodoItems(apiObjects);
+
+            // Sample Post to protected api
+            var todoItem = new TodoItem()
+            {
+                Id = apiObjects.Count() + 1,
+                Task = $"Posting a sample task to the protected WebAPI"
+            };
+            await apiCaller.PostAsync($"{config.TodoListBaseAddress}/api/todolist", result.AccessToken, JsonSerializer.Serialize(todoItem));
+
+            // Show that an item was added...
+            apiObjects = await apiCaller.GetAsync<IEnumerable<TodoItem>>($"{config.TodoListBaseAddress}/api/todolist", result.AccessToken);
+            PrintTodoItems(apiObjects);
+        }
+
+        private static async Task<AuthenticationResult> AquireToken(IConfidentialClientApplication app, string[] scopes)
+        {
             try
             {
-                result = await app.AcquireTokenForClient(scopes)
+                AuthenticationResult result = await app.AcquireTokenForClient(scopes)
                     .ExecuteAsync();
                 Console.ForegroundColor = ConsoleColor.Green;
                 Console.WriteLine("Token acquired \n");
-                Console.ResetColor();
+                return result;
             }
             catch (MsalServiceException ex) when (ex.Message.Contains("AADSTS70011"))
             {
@@ -83,14 +142,11 @@ namespace daemon_console
                 // Mitigation: change the scope to be as expected
                 Console.ForegroundColor = ConsoleColor.Red;
                 Console.WriteLine("Scope provided is not supported");
-                Console.ResetColor();
+                throw ex;
             }
-
-            if (result != null)
+            finally
             {
-                var httpClient = new HttpClient();
-                var apiCaller = new ProtectedApiCallHelper(httpClient);
-                await apiCaller.CallWebApiAndProcessResultASync($"{config.TodoListBaseAddress}/api/todolist", result.AccessToken, Display);
+                Console.ResetColor();
             }
         }
 
@@ -98,18 +154,12 @@ namespace daemon_console
         /// Display the result of the Web API call
         /// </summary>
         /// <param name="result">Object to display</param>
-        private static void Display(IEnumerable<JObject> result)
+        private static void PrintTodoItems(IEnumerable<TodoItem> result)
         {
-            Console.WriteLine("Web Api result: \n");
-
+            Console.WriteLine("Web Api result:");
             foreach (var item in result)
             {
-                foreach (JProperty child in item.Properties().Where(p => !p.Name.StartsWith("@")))
-                {
-                    Console.WriteLine($"{child.Name} = {child.Value}");
-                }
-
-                Console.WriteLine("");
+                Console.WriteLine($"Id: {item.Id}, Task: {item.Task}");
             }
         }
 
@@ -124,12 +174,12 @@ namespace daemon_console
             string clientSecretPlaceholderValue = "[Enter here a client secret for your application]";
             string certificatePlaceholderValue = "[Or instead of client secret: Enter here the name of a certificate (from the user cert store) as registered with your application]";
 
-            if (!String.IsNullOrWhiteSpace(config.ClientSecret) && config.ClientSecret != clientSecretPlaceholderValue)
+            if (!string.IsNullOrWhiteSpace(config.ClientSecret) && config.ClientSecret != clientSecretPlaceholderValue)
             {
                 return true;
             }
 
-            else if (!String.IsNullOrWhiteSpace(config.CertificateName) && config.CertificateName != certificatePlaceholderValue)
+            else if (!string.IsNullOrWhiteSpace(config.CertificateName) && config.CertificateName != certificatePlaceholderValue)
             {
                 return false;
             }

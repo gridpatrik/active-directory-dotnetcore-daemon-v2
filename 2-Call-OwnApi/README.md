@@ -10,21 +10,20 @@ products:
 description: "Shows how a daemon console app uses MSAL.NET to get an access token and call a Web API."
 ---
 
-# A .NET Core daemon console application calling a Web API with its own identity
-
-[![Build status](https://identitydivision.visualstudio.com/IDDP/_apis/build/status/AAD%20Samples/.NET%20client%20samples/active-directory-dotnetcore-daemon-v2%20CI)](https://identitydivision.visualstudio.com/IDDP/_build/latest?definitionId=695)
+# A .NET Core daemon console application calling own Web API and Microsoft Graph with its own identity
 
 ## About this sample
 
 ### Overview
+> Please note that this is a modified version of https://github.com/Azure-Samples/active-directory-dotnetcore-daemon-v2 with the purpose of showing some additional tasks for an specific audience.
 
-This sample application shows how to use the [Microsoft identity platform](http://aka.ms/aadv2) to access the data from a protected Web API, in a non-interactive process.  It uses the [OAuth 2 client credentials grant](https://docs.microsoft.com/en-us/azure/active-directory/develop/v2-oauth2-client-creds-grant-flow) to acquire an access token, which is then used to call the Web API. Additionally, it lays down all the steps developers need to take to secure their Web APIs with the [Microsoft identity platform](http://aka.ms/aadv2).
+This sample application shows how to use the [Microsoft identity platform](http://aka.ms/aadv2) to access the data from a protected Web API, in a non-interactive process.  It uses the [OAuth 2 client credentials grant](https://docs.microsoft.com/en-us/azure/active-directory/develop/v2-oauth2-client-creds-grant-flow) to acquire an access token, which is then used to call the Web APIs. Additionally, it lays down all the steps developers need to take to secure their Web APIs with the [Microsoft identity platform](http://aka.ms/aadv2).
 
-The app is a .NET Core console application that gets the list of "todos" from `TodoList-WebApi` project by using [Microsoft Authentication Library (MSAL) for .NET](https://aka.ms/aaddev) to acquire an access token for `TodoList-WebApi`.
+The client is a .NET Core console application that shows how to query the Microsoft Graph for a user based on it's on-premises objectGUID as well as interacting with third party API (`TodoList-WebApi`) by using [Microsoft Authentication Library (MSAL) for .NET](https://aka.ms/aaddev) to acquire an access token for `TodoList-WebApi` and the Microsoft Graph.
 
 ## Scenario
 
-The console application:
+The console application (client application):
 
 - acquires an access token from the Microsoft Identity Platform as an application (no user interaction required)
 - and then calls `TodoList-WebApi` to get the a list of todo's, displaying the result
@@ -45,7 +44,7 @@ For more information on the concepts used in this sample, be sure to read the [D
 
 To run this sample, you'll need:
 
-- [Visual Studio 2017](https://aka.ms/vsdownload) or just the [.NET Core SDK](https://www.microsoft.com/net/learn/get-started)
+- [Visual Studio 2019](https://aka.ms/vsdownload) or just the [.NET Core SDK](https://www.microsoft.com/net/learn/get-started)
 - An Internet connection
 - A Windows machine (necessary if you want to run the app on Windows)
 - An OS X machine (necessary if you want to run the app on Mac)
@@ -57,7 +56,7 @@ To run this sample, you'll need:
 From your shell or command line:
 
 ```Shell
-git clone https://github.com/Azure-Samples/active-directory-dotnetcore-daemon-v2.git
+git clone https://github.com/gridpatrik/active-directory-dotnetcore-daemon-v2.git
 ```
 
 or download and exact the repository .zip file.
@@ -66,33 +65,7 @@ or download and exact the repository .zip file.
 
 ### Step 2:  Register the sample with your Azure Active Directory tenant
 
-There is one project in this sample. To register it, you can:
-
-- either follow the steps [Step 2: Register the sample with your Azure Active Directory tenant](#step-2-register-the-sample-with-your-azure-active-directory-tenant) and [Step 3:  Configure the sample to use your Azure AD tenant](#choose-the-azure-ad-tenant-where-you-want-to-create-your-applications)
-- or use PowerShell scripts that:
-  - **automatically** creates the Azure AD applications and related objects (passwords, permissions, dependencies) for you
-  - modify the Visual Studio projects' configuration files.
-
-If you want to use this automation:
-
-1. On Windows run PowerShell and navigate to the root of the cloned directory
-1. In PowerShell run:
-
-   ```PowerShell
-   Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope Process -Force
-   ```
-
-1. Run the script to create your Azure AD application and configure the code of the sample application accordingly.
-
-   ```PowerShell
-   .\AppCreationScripts\Configure.ps1
-   ```
-
-   > Other ways of running the scripts are described in [App Creation Scripts](./AppCreationScripts/AppCreationScripts.md)
-
-1. Open the Visual Studio solution and click start
-
-If you don't want to use this automation, follow the steps below
+There is one project in this sample. To register it, you can follow the steps [Step 2: Register the sample with your Azure Active Directory tenant](#step-2-register-the-sample-with-your-azure-active-directory-tenant) and [Step 3:  Configure the sample to use your Azure AD tenant](#choose-the-azure-ad-tenant-where-you-want-to-create-your-applications)
 
 #### Choose the Azure AD tenant where you want to create your applications
 
@@ -168,6 +141,7 @@ The content of `appRoles` should be the following (the `id` can be any unique **
    - In the *Commonly used Microsoft APIs* section, click on **Microsoft Graph**
    - In the **Application permissions** section, ensure that the right permissions are checked: **User.Read.All**
    - Select the **Add permissions** button
+> Note: This is only required if the client code will be calling the Microsoft Graph.
 1. At this stage permissions are assigned correctly but the client app does not allow interaction. 
    Therefore no consent can be presented via a UI and accepted to use the service app. 
    Click the **Grant/revoke admin consent for {tenant}** button, and then select **Yes** when you are asked if you want to grant consent for the
@@ -225,7 +199,6 @@ The relevant code for this sample is in the `Program.cs` file, in the `RunAsync(
                                               .WithAuthority(new Uri(config.Authority))
                                               .Build();
     ```
-
 2. Define the scopes.
 
    Specific to client credentials, you don't specify, in the code, the individual scopes you want to access. You have statically declared
@@ -234,7 +207,7 @@ The relevant code for this sample is in the `Program.cs` file, in the `RunAsync(
 
     ```CSharp
     // With client credentials flows the scopes is ALWAYS of the shape "resource/.default", as the 
-    // application permissions need to be set statically (in the portal or by PowerShell), and then granted by
+    // application permissions need to be set statically in the portal and then granted by
     // a tenant administrator
     string[] scopes = new string[] { "api://922d4e30-640a-4c02-939a-59d241740b1c/.default" };
     ```
@@ -255,17 +228,18 @@ The relevant code for this sample is in the `Program.cs` file, in the `RunAsync(
         // Mitigation: this is a dev issue. Change the scope to be as expected
     }
     ```
+> Note: When calling two different APIs as in this sample we need to request a token twice, once for each API. It's not possible to mix scopes of two different applications in the scopes parameter.
 
 4. Call the API
 
     In this sample, we are calling "https://localhost:44372/api/todolist" with the access token as a bearer token.
 
     ```CSharp
-    var defaultRequestHeaders = HttpClient.DefaultRequestHeaders;
+    var defaultRequestHeaders = httpClient.DefaultRequestHeaders;
 
     if (defaultRequestHeaders.Accept == null || !defaultRequestHeaders.Accept.Any(m => m.MediaType == "application/json"))
     {
-        HttpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+        httpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
     }
 
     defaultRequestHeaders.Authorization = new AuthenticationHeaderValue("bearer", accessToken);
@@ -327,12 +301,12 @@ The relevant code for the Web API is in the `Startup.cs` class. We are using the
     };
     ```
 
-    The protection can also be done on the `Controller` level, using the `Authorize` attribute and `Policy`. Read more about [policy based authorization](https://docs.microsoft.com/en-us/aspnet/core/security/authorization/policies?view=aspnetcore-3.1):
+    The protection can also be done on the `Controller` level, using the `Authorize` attribute and `Policy` as seen in the Post action. Read more about [policy based authorization](https://docs.microsoft.com/en-us/aspnet/core/security/authorization/policies?view=aspnetcore-3.1):
 
     ```csharp
     [HttpGet]
     [Authorize(Policy = "DaemonAppRole")]
-    public IActionResult Get()
+    public IActionResult Post()
     {
         ...
     }

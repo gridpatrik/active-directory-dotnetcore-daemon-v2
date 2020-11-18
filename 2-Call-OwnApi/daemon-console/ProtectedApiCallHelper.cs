@@ -1,14 +1,13 @@
 ﻿// Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the MIT License.
 
-using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
 using System;
-using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Threading.Tasks;
+using System.Text.Json;
+using System.Text;
 
 namespace daemon_console
 {
@@ -32,40 +31,86 @@ namespace daemon_console
         /// <summary>
         /// Calls the protected web API and processes the result
         /// </summary>
+        /// <param name="T">Type to deserialize result to</param>
         /// <param name="webApiUrl">URL of the web API to call (supposed to return Json)</param>
         /// <param name="accessToken">Access token used as a bearer security token to call the web API</param>
-        /// <param name="processResult">Callback used to process the result of the call to the web API</param>
-        public async Task CallWebApiAndProcessResultASync(string webApiUrl, string accessToken, Action<IEnumerable<JObject>> processResult)
+        public async Task<T> GetAsync<T>(string webApiUrl, string accessToken)
         {
-            if (!string.IsNullOrEmpty(accessToken))
+            try
             {
-                var defaultRequestHeaders = HttpClient.DefaultRequestHeaders;
-                if (defaultRequestHeaders.Accept == null || !defaultRequestHeaders.Accept.Any(m => m.MediaType == "application/json"))
-                {
-                    HttpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-                }
-                defaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+                if (string.IsNullOrEmpty(accessToken))
+                    throw new ArgumentException("Access Token is not valid");
 
+                PrepareHeaders(HttpClient, accessToken);
                 HttpResponseMessage response = await HttpClient.GetAsync(webApiUrl);
                 if (response.IsSuccessStatusCode)
                 {
                     string json = await response.Content.ReadAsStringAsync();
-                    var result = JsonConvert.DeserializeObject<List<JObject>>(json);
-                    Console.ForegroundColor = ConsoleColor.Gray;
-                    processResult(result);
+                    return JsonSerializer.Deserialize<T>(json);
                 }
                 else
                 {
-                    Console.ForegroundColor = ConsoleColor.Red;
-                    Console.WriteLine($"Failed to call the web API: {response.StatusCode}");
-                    string content = await response.Content.ReadAsStringAsync();
-
-                    // Note that if you got reponse.Code == 403 and reponse.content.code == "Authorization_RequestDenied"
-                    // this is because the tenant admin as not granted consent for the application to call the Web API
-                    Console.WriteLine($"Content: {content}");
+                    var failureContent = await FailedResponseHandler(response);
+                    throw new Exception(failureContent);
                 }
+            }
+            finally
+            {
                 Console.ResetColor();
             }
+        }
+
+        private static async Task<string> FailedResponseHandler(HttpResponseMessage response)
+        {
+            Console.ForegroundColor = ConsoleColor.Red;
+            Console.WriteLine($"Failed to call the web API: {response.StatusCode}");
+            string content = await response.Content.ReadAsStringAsync();
+
+            // Note that if you got reponse.Code == 403 and reponse.content.code == "Authorization_RequestDenied"
+            // this is because the tenant admin as not granted consent for the application to call the Web API
+            Console.WriteLine($"Content: {content}");
+            Console.ResetColor();
+            return content;
+        }
+
+        /// <summary>
+        /// Calls the protected web API and processes the result
+        /// </summary>
+        /// <param name="T">Type to deserialize result to</param>
+        /// <param name="webApiUrl">URL of the web API to call (supposed to return Json)</param>
+        /// <param name="accessToken">Access token used as a bearer security token to call the web API</param>
+        public async Task PostAsync(string webApiUrl, string accessToken, string payload)
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(accessToken))
+                    throw new ArgumentException("Access Token is not valid");
+
+                PrepareHeaders(HttpClient, accessToken);
+
+                var data = new StringContent(payload, Encoding.UTF8, "application/json");
+
+                HttpResponseMessage response = await HttpClient.PostAsync(webApiUrl, data);
+                if (!response.IsSuccessStatusCode)
+                {
+                    var failureContent = await FailedResponseHandler(response);
+                    throw new Exception(failureContent);
+                }
+            }
+            finally
+            {
+                Console.ResetColor();
+            }
+        }
+
+        private void PrepareHeaders(HttpClient httpClient, string accessToken)
+        {
+            var defaultRequestHeaders = httpClient.DefaultRequestHeaders;
+            if (defaultRequestHeaders.Accept == null || !defaultRequestHeaders.Accept.Any(m => m.MediaType == "application/json"))
+            {
+                httpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+            }
+            defaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
         }
     }
 }

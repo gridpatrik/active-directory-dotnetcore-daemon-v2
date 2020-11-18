@@ -73,6 +73,10 @@ namespace daemon_console
         /// </summary>
         public string TodoListScope { get; set; }
 
+        public string MsGraphBaseAddress { get; set; }
+
+        public string MsGraphScope { get; set; }
+
         /// <summary>
         /// Reads the configuration from a json file
         /// </summary>
@@ -89,6 +93,8 @@ namespace daemon_console
             Configuration = builder.Build();
             return Configuration.Get<AuthenticationConfig>();
         }
+
+        public string MsGraphApiVersion { get; set; }
     }
 
 

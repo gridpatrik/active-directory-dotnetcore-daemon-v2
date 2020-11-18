@@ -1,15 +1,11 @@
 ﻿// Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the MIT License.
 
-using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Identity.Web.Resource;
-using Newtonsoft.Json;
 using TodoList_WebApi.Models;
 
 namespace TodoList_WebApi.Controllers
@@ -39,6 +35,14 @@ namespace TodoList_WebApi.Controllers
         {
             HttpContext.ValidateAppRole("DaemonAppRole");
             return Ok(TodoStore.Values);
+        }
+
+        [HttpPost]
+        [Authorize(Roles = "DaemonAppRole")]
+        public IActionResult Post([FromBody] TodoItem item)
+        {
+            TodoStore.Add(item.Id, item);
+            return Ok();
         }
     }
 }
