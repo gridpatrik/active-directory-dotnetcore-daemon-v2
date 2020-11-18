@@ -25,10 +25,10 @@ The client is a .NET Core console application that shows how to query the Micros
 
 The console application (client application):
 
-- acquires an access token from the Microsoft Identity Platform as an application (no user interaction required)
+- acquires an access token for the Microsoft Graph from the Microsoft Identity Platform as an application (no user interaction required)
+- and then calls `Microsoft Graph` to get information about users, displaying the result
+- acquires an access token for the TodoList-WebApi from the Microsoft Identity Platform as an application (no user interaction required)
 - and then calls `TodoList-WebApi` to get the a list of todo's, displaying the result
-
-![Topology](./ReadmeFiles/daemon-with-secret.svg)
 
 For more information on the concepts used in this sample, be sure to read the [Daemon application that calls web APIs documentation](https://docs.microsoft.com/en-us/azure/active-directory/develop/scenario-daemon-overview).
 
@@ -141,7 +141,8 @@ The content of `appRoles` should be the following (the `id` can be any unique **
    - In the *Commonly used Microsoft APIs* section, click on **Microsoft Graph**
    - In the **Application permissions** section, ensure that the right permissions are checked: **User.Read.All**
    - Select the **Add permissions** button
-> Note: This is only required if the client code will be calling the Microsoft Graph.
+   > Note: This is only required if the client code will be calling the Microsoft Graph.
+
 1. At this stage permissions are assigned correctly but the client app does not allow interaction. 
    Therefore no consent can be presented via a UI and accepted to use the service app. 
    Click the **Grant/revoke admin consent for {tenant}** button, and then select **Yes** when you are asked if you want to grant consent for the
@@ -228,7 +229,7 @@ The relevant code for this sample is in the `Program.cs` file, in the `RunAsync(
         // Mitigation: this is a dev issue. Change the scope to be as expected
     }
     ```
-> Note: When calling two different APIs as in this sample we need to request a token twice, once for each API. It's not possible to mix scopes of two different applications in the scopes parameter.
+    > Note: When calling two different APIs as in this sample we need to request a token twice, once for each API. It's not possible to mix scopes of two different applications in the scopes parameter.
 
 4. Call the API
 
@@ -420,9 +421,11 @@ The rest of the application is the same. The sample also has a method to retriev
 
 ## Next Steps
 
-Learn how to:
+Learn:
 
-- [Integrate a daemon app with Key Vault and MSI](https://github.com/Azure-Samples/active-directory-dotnetcore-daemon-v2/tree/master/3-Using-KeyVault)
+- [Fundamentals of HttpClient: Make HTTP requests using IHttpClientFactory in ASP.NET Core](https://docs.microsoft.com/en-us/aspnet/core/fundamentals/http-requests?view=aspnetcore-5.0)
+- [Simple authorization in ASP.NET Core](https://docs.microsoft.com/en-us/aspnet/core/security/authorization/simple?view=aspnetcore-5.0)
+- [How to integrate a daemon app with Key Vault and MSI](https://github.com/Azure-Samples/active-directory-dotnetcore-daemon-v2/tree/master/3-Using-KeyVault)
 
 ## Community Help and Support
 
